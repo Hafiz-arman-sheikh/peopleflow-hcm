@@ -1,15 +1,10 @@
 
 'use strict';
 
-const KEY = 'peopleflow_hrms_v1';
-
 function TODAY() {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const part = type => parts.find(p => p.type === type).value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
 function MONTH() {
@@ -44,219 +39,75 @@ function money(number) {
     return 'Rs. ' + fmt(number);
 }
 
-function seed() {
-    const day = TODAY();
-
-    return {
-        company: 'Sanaulla Store',
-
-        employees: [
-            {
-                id: 'EMP-101',
-                name: 'Ayesha Malik',
-                email: 'ayesha@example.com',
-                phone: '03001234567',
-                department: 'Design',
-                designation: 'UI Designer',
-                joined: '2025-04-10',
-                salary: 78000,
-                status: 'Active'
-            },
-            {
-                id: 'EMP-102',
-                name: 'Hamza Ali',
-                email: 'hamza@example.com',
-                phone: '03011234567',
-                department: 'Engineering',
-                designation: 'Frontend Developer',
-                joined: '2025-07-19',
-                salary: 95000,
-                status: 'Active'
-            },
-            {
-                id: 'EMP-103',
-                name: 'Sara Khan',
-                email: 'sara@example.com',
-                phone: '03021234567',
-                department: 'People Ops',
-                designation: 'HR Executive',
-                joined: '2024-09-02',
-                salary: 85000,
-                status: 'Active'
-            },
-            {
-                id: 'EMP-104',
-                name: 'Bilal Ahmed',
-                email: 'bilal@example.com',
-                phone: '03031234567',
-                department: 'Operations',
-                designation: 'Operations Officer',
-                joined: '2026-01-15',
-                salary: 62000,
-                status: 'Active'
-            },
-            {
-                id: 'EMP-105',
-                name: 'Zoya Ahmed',
-                email: 'zoya@example.com',
-                phone: '03041234567',
-                department: 'Marketing',
-                designation: 'Content Lead',
-                joined: '2025-11-07',
-                salary: 72000,
-                status: 'On Leave'
-            }
-        ],
-
-        attendance: [
-            {
-                id: uid('ATT'),
-                employeeId: 'EMP-101',
-                date: day,
-                status: 'Present',
-                checkIn: '09:03',
-                checkOut: '18:00'
-            },
-            {
-                id: uid('ATT'),
-                employeeId: 'EMP-102',
-                date: day,
-                status: 'Present',
-                checkIn: '09:27',
-                checkOut: '18:12'
-            },
-            {
-                id: uid('ATT'),
-                employeeId: 'EMP-103',
-                date: day,
-                status: 'Present',
-                checkIn: '08:58',
-                checkOut: '17:50'
-            },
-            {
-                id: uid('ATT'),
-                employeeId: 'EMP-104',
-                date: day,
-                status: 'Absent',
-                checkIn: '',
-                checkOut: ''
-            }
-        ],
-
-        leaves: [
-            {
-                id: uid('LV'),
-                employeeId: 'EMP-105',
-                type: 'Annual',
-                from: day,
-                to: day,
-                reason: 'Personal',
-                status: 'Approved'
-            },
-            {
-                id: uid('LV'),
-                employeeId: 'EMP-102',
-                type: 'Casual',
-                from: day,
-                to: day,
-                reason: 'Family appointment',
-                status: 'Pending'
-            }
-        ],
-
-        expenses: [
-            {
-                id: uid('EX'),
-                employeeId: 'EMP-104',
-                type: 'Travel',
-                amount: 2500,
-                date: day,
-                description: 'Client site visit',
-                status: 'Pending'
-            }
-        ],
-
-        recruitment: [
-            {
-                id: uid('JOB'),
-                title: 'Product Designer',
-                department: 'Design',
-                openings: 1,
-                status: 'Open'
-            },
-            {
-                id: uid('JOB'),
-                title: 'QA Engineer',
-                department: 'Engineering',
-                openings: 2,
-                status: 'Open'
-            }
-        ],
-
-        performance: [
-            {
-                id: uid('PR'),
-                employeeId: 'EMP-101',
-                period: MONTH(),
-                score: 4,
-                notes: 'Strong delivery'
-            }
-        ],
-
-        payroll: [],
-
-        activity: [
-            {
-                id: uid('ACT'),
-                text: 'Demo workspace ready',
-                date: day
-            }
-        ],
-
-        settings: {
-            annualQuota: 20,
-            casualQuota: 10,
-            sickQuota: 8
-        }
-    };
+function emptyWorkspace() {
+    return { company: 'PeopleFlow', employees: [], attendance: [], leaves: [],
+        expenses: [], recruitment: [], performance: [], payroll: [], activity: [],
+        settings: { annualQuota: 20, casualQuota: 10, sickQuota: 8, shiftStart: '09:00', graceMinutes: 15 } };
 }
 
-function load() {
-    try {
-        const savedData = localStorage.getItem(KEY);
-        const data = JSON.parse(savedData);
+let db = emptyWorkspace();
+let currentProfile = null;
+let revision = 0;
+let busy = false;
+let confirmedWorkspace = null;
+let refreshTimer;
+const cloud = window.PeopleFlowCloud;
 
-        if (data && Array.isArray(data.employees)) {
-            return data;
-        }
-    } catch (error) {
-    }
-
-    const data = seed();
-
-    try {
-        localStorage.setItem(KEY, JSON.stringify(data));
-    } catch (error) {
-    }
-
-    return data;
+function acceptWorkspace(result) {
+    db = result.data;
+    currentProfile = result.profile;
+    revision = result.revision;
+    confirmedWorkspace = JSON.stringify(result);
 }
 
-let db = load();
+function isAdmin() {
+    return currentProfile?.role === 'admin';
+}
+
+function isStaff() {
+    return ['admin', 'hr'].includes(currentProfile?.role);
+}
+
+function canAccess(target) {
+    if (isAdmin()) return true;
+    if (currentProfile?.role === 'hr') return target !== 'settings';
+    return ['overview', 'attendance', 'leaves', 'payroll'].includes(target);
+}
+
+async function runTask(task) {
+    if (busy) return;
+    busy = true;
+    document.body.classList.add('is-saving');
+    document.getElementById('syncStatus').textContent = 'Working…';
+    try {
+        await task();
+        document.getElementById('syncStatus').textContent = 'Saved to Supabase';
+    } catch (error) {
+        if (confirmedWorkspace) acceptWorkspace(JSON.parse(confirmedWorkspace));
+        if (/Records changed/.test(error.message || '')) {
+            try { acceptWorkspace(await cloud.rpc('pf_get_workspace')); } catch {}
+        }
+        if (/not been assigned|inactive or not linked|JWT expired|invalid refresh token/i.test(error.message || '')) clearWorkspace();
+        if (currentProfile) render();
+        document.getElementById('syncStatus').textContent = 'Action failed — retry';
+        notify(error.message || 'Unable to complete the request.');
+    } finally {
+        busy = false;
+        document.body.classList.remove('is-saving');
+    }
+}
+
 let page = 'overview';
 let search = '';
 let filter = '';
 let selectedMonth = MONTH();
 let toastTimer;
 
-function save() {
-    try {
-        localStorage.setItem(KEY, JSON.stringify(db));
-        return true;
-    } catch (error) {
-        alert('Browser storage full or blocked. Please export your data.');
-        return false;
-    }
+async function save() {
+    if (!isStaff()) throw new Error('HR or administrator access required.');
+    acceptWorkspace(await cloud.rpc('pf_save_workspace', {
+        payload: db, expected_revision: revision
+    }));
 }
 
 function log(text) {
@@ -312,12 +163,14 @@ const nav = [
 ];
 
 function go(newPage) {
+    if (!canAccess(newPage)) { notify('🔒 You do not have access to this module.'); return; }
     page = newPage;
     search = '';
     filter = '';
 
     document.querySelector('.sidebar').classList.remove('open');
 
+    closeSidebar();
     render();
 }
 
@@ -370,7 +223,7 @@ function panel(title, content, note = '') {
 function pill(status) {
     let color = '';
 
-    if (['Active', 'Approved', 'Present', 'Paid', 'Open', 'Completed'].includes(status)) {
+    if (['Active', 'Approved', 'Present', 'Processed', 'Open', 'Completed'].includes(status)) {
         color = 'good';
     } else if (['Pending', 'Late', 'On Leave', 'In Progress'].includes(status)) {
         color = 'warn';
@@ -781,17 +634,17 @@ function payroll() {
         const allowance = p ? p.allowance : 0;
         const deduction = p ? p.deduction : 0;
         const net = p ? p.net : e.salary;
-        const status = p ? 'Paid' : 'Not processed';
+        const status = p ? 'Processed' : 'Not processed';
         const actionName = p ? 'Adjust' : 'Process';
 
         return tr([
             person(e),
-            money(e.salary),
+            money(p ? p.base : e.salary),
             money(allowance),
             money(deduction),
             `<b>${money(net)}</b>`,
             pill(status),
-            button(actionName, 'payroll-process:' + e.id, 'small secondary')
+            button(actionName, 'payroll-process:' + e.id, 'small secondary') + (p ? button('Payslip', 'payslip:' + p.id, 'small secondary') : '')
         ]);
     });
 
@@ -805,7 +658,7 @@ function payroll() {
 
     const banner = `
         <div class="banner">
-            Demo payroll calculator. It does not calculate Pakistan income tax,
+            Payroll calculator. It does not calculate Pakistan income tax,
             EOBI, provident fund or statutory compliance automatically.
         </div>
     `;
@@ -976,7 +829,7 @@ function reports() {
             ${button('Attendance CSV', 'attendance-csv', 'secondary')}
             ${button('Leave CSV', 'leaves-csv', 'secondary')}
             ${button('Expenses CSV', 'expenses-csv', 'secondary')}
-            ${button('JSON backup', 'backup', 'secondary')}
+            ${isAdmin() ? button('JSON backup', 'backup', 'secondary') : ''}
         </div>
     `;
 
@@ -984,7 +837,7 @@ function reports() {
         'Reports & insights',
         'A quick look at workforce distribution and key metrics.',
         button('Export employees CSV', 'employees-csv', 'secondary')
-    ) + `
+    ) + reportFilters() + `
         <div class="stats">
             ${stat('Departments', departments.length, 'With employees', '▦')}
             ${stat('Leave approved', approved, 'All dates', '☷')}
@@ -1020,13 +873,15 @@ function settings() {
                 <input type="number" name="sickQuota" min="0"
                     required value="${db.settings.sickQuota}">
             </div>
+            ${field('Shift start (Asia/Karachi)', 'shiftStart', 'time', db.settings.shiftStart || '09:00')}
+            ${field('Late grace period (minutes)', 'graceMinutes', 'number', db.settings.graceMinutes ?? 15, true, 'min="0" max="366" step="1"')}
             <button class="btn" type="submit">Save settings</button>
         </form>
     `;
 
     const backups = `
         <p class="subtitle" style="margin-bottom:20px">
-            Save your records outside this browser.
+            Export a backup of your Supabase records.
             Importing a backup replaces current data.
         </p>
         <div class="btn-row">
@@ -1036,18 +891,18 @@ function settings() {
                 <input type="file" id="importFile"
                     accept="application/json,.json" hidden>
             </label>
-            ${button('Reset demo data', 'reset', 'danger')}
+
         </div>
         <p class="muted" style="font-size:11px;margin-top:20px">
-            LocalStorage is not secure shared storage.
-            Avoid real employee personal information.
+            Accounts are managed in Supabase Auth. Link each user to an employee ID
+            using the setup instructions. Only administrators can change company records.
         </p>
     `;
 
     return header(
         'Workspace settings',
-        'Edit demo workspace preferences and backups.'
-    ) + `
+        'Manage company preferences, attendance rules and backups.'
+    ) + panel('Login access & roles', accountAccessForm()) + `
         <div class="split">
             ${panel('Company settings', companyForm)}
             ${panel('Data & backups', backups)}
@@ -1059,16 +914,19 @@ function render() {
     const navigation = document.getElementById('navigation');
     let navigationHTML = '';
 
+    if (!canAccess(page)) page = 'overview';
+
     nav.forEach(function (item) {
         const id = item[0];
         const icon = item[1];
         const label = item[2];
+        const locked = !canAccess(id);
         const active = page === id ? 'active' : '';
 
         navigationHTML += `
-            <button class="nav-link ${active}" data-go="${id}">
+            <button class="nav-link ${active} ${locked ? 'locked' : ''}" data-go="${id}" aria-disabled="${locked}" title="${locked ? 'Access restricted for your role' : label}">
                 <span class="symbol">${icon}</span>
-                ${label}
+                ${label}${locked ? '<span class="nav-lock" aria-label="Locked">🔒</span>' : ''}
             </button>
         `;
     });
@@ -1082,6 +940,7 @@ function render() {
 
     document.getElementById('today').textContent =
         new Date().toLocaleDateString('en-PK', {
+            timeZone: 'Asia/Karachi',
             day: 'numeric',
             month: 'long',
             year: 'numeric'
@@ -1102,7 +961,13 @@ function render() {
         settings: settings
     };
 
-    document.getElementById('view').innerHTML = pages[page]();
+    document.getElementById('view').innerHTML = isStaff() ? pages[page]() : employeePage();
+    document.querySelector('.profile b').textContent = currentProfile?.display_name || (isStaff() ? (isAdmin() ? 'Administrator' : 'HR Manager') : employee(currentProfile?.employee_id)?.name || 'Employee');
+    const initials = isStaff() ? (isAdmin() ? 'AD' : 'HR') : (employee(currentProfile?.employee_id)?.name || 'Employee').split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+    document.querySelector('.profile .avatar').textContent = initials;
+    document.querySelector('.topavatar').textContent = initials;
+    document.getElementById('exportBtn').title = isAdmin() ? 'Download backup' : 'Export attendance CSV';
+    document.querySelector('.profile small').textContent = isAdmin() ? 'Administrator' : currentProfile?.role === 'hr' ? 'HR Manager' : 'Employee workspace';
 }
 
 function field(label, name, type = 'text', value = '', required = true, extra = '') {
@@ -1178,7 +1043,16 @@ function close() {
     document.getElementById('modal').classList.add('hidden');
 }
 
-function action(code) {
+async function action(code) {
+    if (code.startsWith('payslip-download:')) return downloadPayslip(code.slice(17));
+    if (code === 'payslip-print') return window.print();
+    if (code === 'refresh') { acceptWorkspace(await cloud.rpc('pf_get_workspace')); render(); return; }
+    if (code.startsWith('payslip:')) return showPayslip(code.slice(8));
+    if (code === 'access-list') return listAccountAccess();
+    if (code === 'access-save') return saveAccountAccess();
+    if (code === 'access-revoke') return revokeAccountAccess();
+    if (!isStaff()) return employeeAction(code);
+    if (['backup', 'reset'].includes(code) && !isAdmin()) throw new Error('🔒 Only administrators can manage backups.');
     const parts = code.split(':');
     const type = parts[0];
     const id = parts[1];
@@ -1336,7 +1210,7 @@ function action(code) {
             <input type="hidden" name="kind" value="payroll">
             <input type="hidden" name="employeeId" value="${safe(id)}">
             <p class="subtitle" style="margin-bottom:17px">
-                ${selectedMonth} · Base salary ${money(e.salary)}
+                ${selectedMonth} · Base salary ${money(p?.base ?? e.salary)}
             </p>
             ${field('Allowances (PKR)', 'allowance', 'number', p?.allowance || 0, true, 'min="0"')}
             ${field('Deductions (PKR)', 'deduction', 'number', p?.deduction || 0, true, 'min="0"')}
@@ -1368,6 +1242,7 @@ function action(code) {
                     id: uid('PAY'),
                     employeeId: e.id,
                     month: selectedMonth,
+                    base: Number(e.salary),
                     allowance: 0,
                     deduction: 0,
                     net: Number(e.salary)
@@ -1376,7 +1251,7 @@ function action(code) {
         });
 
         log('Payroll processed for ' + selectedMonth);
-        save();
+        await save();
         render();
         notify('Monthly payroll processed');
         return;
@@ -1411,7 +1286,7 @@ function action(code) {
         }
 
         log(area + ' request ' + item.status.toLowerCase());
-        save();
+        await save();
         render();
         notify('Status updated');
         return;
@@ -1430,7 +1305,7 @@ function action(code) {
             item.status = 'Open';
         }
 
-        save();
+        await save();
         render();
         return;
     }
@@ -1469,7 +1344,7 @@ function action(code) {
         }
 
         log('Record removed');
-        save();
+        await save();
         render();
         notify('Record deleted');
         return;
@@ -1500,24 +1375,14 @@ function action(code) {
         }
 
         if (rows) {
+            if (['attendance', 'leaves', 'expenses'].includes(group)) rows = reportRows(rows, group);
             csv(rows, group);
         }
 
         return;
     }
 
-    if (type === 'reset') {
-        if (!confirm('Reset all changes and restore example data?')) {
-            return;
-        }
 
-        db = seed();
-
-        save();
-        go('overview');
-        notify('Demo restored');
-        return;
-    }
 }
 
 function csv(rows, name) {
@@ -1536,7 +1401,9 @@ function csv(rows, name) {
 
     const text = allRows.map(function (row) {
         return row.map(function (value) {
-            return '"' + String(value).replace(/"/g, '""') + '"';
+            const text = String(value);
+            const guarded = /^[\s]*[=+@-]/.test(text) ? "'" + text : text;
+            return '"' + guarded.replace(/"/g, '""') + '"';
         }).join(',');
     }).join('\r\n');
 
@@ -1561,7 +1428,8 @@ function download(name, text, mime) {
     }, 2000);
 }
 
-function submitForm(form) {
+async function submitForm(form) {
+    if (!isStaff()) return submitEmployeeForm(form);
     const data = Object.fromEntries(new FormData(form));
     const kind = data.kind;
 
@@ -1575,7 +1443,7 @@ function submitForm(form) {
         data.email = trim(data.email);
         data.salary = Number(data.salary);
 
-        if (!data.id || !data.name || !data.email || data.salary < 0) {
+        if (!data.id || !data.name || !data.email || !Number.isFinite(data.salary) || data.salary < 0) {
             notify('Check employee fields');
             return;
         }
@@ -1651,6 +1519,7 @@ function submitForm(form) {
             data.checkOut = '';
         }
 
+        if (data.checkOut && (!data.checkIn || data.checkOut < data.checkIn)) { notify('Check-out must follow check-in'); return; }
         const index = db.attendance.findIndex(a => a.id === data.id);
 
         if (index >= 0) {
@@ -1666,40 +1535,9 @@ function submitForm(form) {
     }
 
     else if (kind === 'leave') {
-        if (data.to < data.from) {
-            notify('End date must not precede start');
-            return;
-        }
-
-        if (data.type !== 'Unpaid') {
-            const quotaKey = data.type.toLowerCase() + 'Quota';
-            const quota = db.settings[quotaKey];
-
-            const approvedLeaves = db.leaves.filter(function (l) {
-                return l.employeeId === data.employeeId &&
-                    l.type === data.type &&
-                    l.status === 'Approved' &&
-                    l.from.slice(0, 4) === data.from.slice(0, 4);
-            });
-
-            const used = approvedLeaves.reduce(function (total, l) {
-                return total + daysBetween(l.from, l.to);
-            }, 0);
-
-            const requested = daysBetween(data.from, data.to);
-
-            if (used + requested > quota) {
-                notify('Leave request exceeds annual quota');
-                return;
-            }
-        }
-
-        db.leaves.push({
-            ...data,
-            id: uid('LV'),
-            status: 'Pending'
-        });
-
+        const error = validateLeave(data, db.leaves, db.settings);
+        if (error) { notify(error); return; }
+        db.leaves.push({ ...data, id: uid('LV'), status: 'Pending' });
         log('Leave requested by ' + displayName(data.employeeId));
     }
 
@@ -1763,7 +1601,9 @@ function submitForm(form) {
             return;
         }
 
-        const net = Number(e.salary) + allowance - deduction;
+        const previous = db.payroll.find(p => p.employeeId === e.id && p.month === selectedMonth);
+        const base = previous?.base ?? Number(e.salary);
+        const net = base + allowance - deduction;
 
         if (net < 0) {
             notify('Deductions exceed total salary');
@@ -1774,6 +1614,7 @@ function submitForm(form) {
             id: uid('PAY'),
             employeeId: e.id,
             month: selectedMonth,
+            base: base,
             allowance: allowance,
             deduction: deduction,
             net: net
@@ -1792,7 +1633,7 @@ function submitForm(form) {
         return;
     }
 
-    save();
+    await save();
     close();
     render();
     notify('Record saved successfully');
@@ -1812,7 +1653,7 @@ document.addEventListener('click', function (event) {
     } else if (buttonElement.dataset.close) {
         close();
     } else if (buttonElement.dataset.action) {
-        action(buttonElement.dataset.action);
+        runTask(() => action(buttonElement.dataset.action));
     }
 });
 
@@ -1851,7 +1692,8 @@ document.addEventListener('change', async function (event) {
             return;
         }
 
-        try {
+        await runTask(async () => {
+            if (!isAdmin()) throw new Error('Administrator access required.');
             const imported = JSON.parse(await file.text());
 
             if (
@@ -1874,102 +1716,146 @@ document.addEventListener('change', async function (event) {
                 return;
             }
 
-            db = imported;
+            db = normalizeBackup(imported);
 
-            save();
+            await save();
             go('overview');
             notify('Backup imported');
-        } catch (error) {
-            notify('Invalid JSON backup file');
-        }
+        });
     }
 });
 
 document.addEventListener('submit', function (event) {
-    if (event.target.id === 'recordForm') {
+    if (event.target.id === 'accessForm' || event.target.id === 'payslipForm') event.preventDefault();
+    if (event.target.getAttribute('id') === 'recordForm') {
         event.preventDefault();
-        submitForm(event.target);
+        runTask(() => submitForm(event.target));
     }
 
     if (event.target.id === 'settingsForm') {
         event.preventDefault();
-
-        const data = Object.fromEntries(new FormData(event.target));
-
-        db.company = data.company.trim() || 'Company';
-
-        db.settings = {
-            annualQuota: Number(data.annualQuota),
-            casualQuota: Number(data.casualQuota),
-            sickQuota: Number(data.sickQuota)
-        };
-
-        save();
-        render();
-        notify('Settings saved');
+        runTask(async () => {
+            if (!isAdmin()) throw new Error('Administrator access required.');
+            const data = Object.fromEntries(new FormData(event.target));
+            db.company = data.company.trim();
+            db.settings = { annualQuota: Number(data.annualQuota), casualQuota: Number(data.casualQuota),
+                sickQuota: Number(data.sickQuota), shiftStart: data.shiftStart, graceMinutes: Number(data.graceMinutes) };
+            await save();
+            render();
+            notify('Settings saved');
+        });
     }
 });
 
-document.getElementById('menuBtn').addEventListener('click', function () {
-    document.querySelector('.sidebar').classList.toggle('open');
-});
-
-document.getElementById('exportBtn').addEventListener('click', function () {
-    action('backup');
-});
-
-render();
-
-const LOGIN_SESSION = 'peopleflow_demo_signed_in';
-
-function showWorkspace() {
-    const authenticated = sessionStorage.getItem(LOGIN_SESSION) === 'yes';
-
-    document.getElementById('signin').classList.toggle(
-        'hidden',
-        authenticated
-    );
-
-    document.getElementById('app').classList.toggle(
-        'hidden',
-        !authenticated
-    );
+function closeSidebar() {
+    document.querySelector('.sidebar').classList.remove('open');
+    document.getElementById('menuBtn').setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('nav-open');
+    document.getElementById('sidebarOverlay').hidden = true;
 }
 
-document.getElementById('loginForm').addEventListener('submit', function (event) {
-    event.preventDefault();
-
-    const email = document.getElementById('loginEmail')
-        .value.trim().toLowerCase();
-
-    const password = document.getElementById('loginPassword').value;
-
-    if (email === 'admin@demo.com' && password === 'admin123') {
-        sessionStorage.setItem(LOGIN_SESSION, 'yes');
-
-        document.getElementById('loginError').textContent = '';
-
-        go('overview');
-        showWorkspace();
-    } else {
-        document.getElementById('loginError').textContent =
-            'Incorrect email or password.';
-    }
+document.getElementById('menuBtn').addEventListener('click', () => {
+    const open = document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('menuBtn').setAttribute('aria-expanded', String(open));
+    document.getElementById('sidebarOverlay').hidden = !open;
+    document.body.classList.toggle('nav-open', open);
+});
+document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
+document.addEventListener('click', event => {
+    if (!window.matchMedia('(max-width: 750px)').matches) return;
+    if (!event.target.closest('.sidebar, #menuBtn')) closeSidebar();
+});
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { closeSidebar(); close(); }
+});
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 750) closeSidebar();
+});
+document.getElementById('exportBtn').addEventListener('click', () => {
+    runTask(() => action(isAdmin() ? 'backup' : 'attendance-csv'));
 });
 
-document.getElementById('showPassword').addEventListener('click', function () {
-    const input = document.getElementById('loginPassword');
+function showWorkspace() {
+    const authenticated = !!currentProfile;
+    document.getElementById('signin').classList.toggle('hidden', authenticated);
+    document.getElementById('app').classList.toggle('hidden', !authenticated);
+    if (authenticated) render();
+}
 
-    if (input.type === 'password') {
-        input.type = 'text';
-    } else {
-        input.type = 'password';
-    }
-});
-
-document.getElementById('logoutBtn').addEventListener('click', function () {
-    sessionStorage.removeItem(LOGIN_SESSION);
+function clearWorkspace() {
+    currentProfile = null;
+    confirmedWorkspace = null;
+    db = emptyWorkspace();
+    revision = 0;
+    closeSidebar();
+    close();
+    document.getElementById('view').replaceChildren();
     showWorkspace();
+    clearInterval(refreshTimer);
+}
+
+async function loadAccount() {
+    acceptWorkspace(await cloud.rpc('pf_get_workspace'));
+    page = 'overview';
+    showWorkspace();
+    clearInterval(refreshTimer);
+    // Refresh when idle; never overwrite an in-progress form or save.
+    refreshTimer = setInterval(refreshWorkspace, 30000);
+}
+
+async function refreshWorkspace() {
+    if (!currentProfile || busy || document.hidden || !document.getElementById('modal').classList.contains('hidden') || page === 'settings') return;
+    await runTask(async () => {
+        const result = await cloud.rpc('pf_get_workspace');
+        if (result.revision !== revision || JSON.stringify(result.profile) !== JSON.stringify(currentProfile)) {
+            acceptWorkspace(result);
+            render();
+        }
+    });
+}
+
+document.getElementById('loginForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy) return;
+    const submit = event.target.querySelector('[type="submit"]');
+    busy = true;
+    submit.disabled = true;
+    submit.textContent = 'Signing in…';
+    document.getElementById('loginError').textContent = '';
+    try {
+        await cloud.login(document.getElementById('loginEmail').value.trim(), document.getElementById('loginPassword').value);
+        await loadAccount();
+        document.getElementById('loginPassword').value = '';
+    } catch (error) {
+        clearWorkspace();
+        document.getElementById('loginError').textContent = error.message;
+    } finally {
+        busy = false;
+        submit.disabled = false;
+        submit.textContent = 'Sign in →';
+    }
 });
 
-showWorkspace();
+document.getElementById('showPassword').addEventListener('click', () => {
+    const input = document.getElementById('loginPassword');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    document.getElementById('showPassword').setAttribute('aria-label', input.type === 'text' ? 'Hide password' : 'Show password');
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => runTask(async () => {
+    await cloud.logout();
+    clearWorkspace();
+}));
+
+(async function boot() {
+    try {
+        cloud.initialize();
+        cloud.onAuthChange(event => {
+            if (event === 'SIGNED_OUT') clearWorkspace();
+        });
+        if (await cloud.session()) await loadAccount();
+    } catch (error) {
+        clearWorkspace();
+        document.getElementById('loginError').textContent = error.message;
+    }
+})();

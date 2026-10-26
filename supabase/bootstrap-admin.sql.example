@@ -1,0 +1,14 @@
+-- 1. Run setup.sql first.
+-- 2. Supabase Dashboard → Authentication → Users → Add user.
+--    Create your administrator account and confirm its email.
+-- 3. Replace the email below, then run this in SQL Editor as project owner.
+--    This does NOT create a password or a user.
+do $$
+declare admin_id uuid;
+begin
+  select id into admin_id from auth.users where lower(email) = lower('YOUR_ADMIN_EMAIL_HERE');
+  if admin_id is null then raise exception 'Create this email in Authentication → Users first.'; end if;
+  insert into public.pf_profiles(user_id, role, display_name)
+  values (admin_id, 'admin', 'Administrator')
+  on conflict (user_id) do update set role = 'admin', employee_id = null;
+end $$;

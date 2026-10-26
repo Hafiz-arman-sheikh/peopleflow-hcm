@@ -22,7 +22,7 @@
                     <div class="preview-bottom"><b>Everything in sync</b><span>HR operations made simple</span></div>
                 </div>
             </div>
-            <div class="signin-copyright">PeopleFlow HCM · Offline showcase · Not affiliated with FlowHCM</div>
+            <div class="signin-copyright">PeopleFlow HCM · HR workspace · Not affiliated with FlowHCM</div>
         </div>
         <div class="signin-right">
             <div class="signin-form-wrap">
@@ -30,25 +30,25 @@
                 <h2>Welcome back</h2>
                 <p class="signin-description">Sign in to your HR workspace</p>
                 <form id="loginForm"><label for="loginEmail">Email address</label><input id="loginEmail" type="email"
-                        required placeholder="admin@demo.com" autocomplete="username" value="admin@demo.com"><label
+                        required placeholder="you@company.com" autocomplete="username"><label
                         for="loginPassword">Password</label>
                     <div class="password-wrap"><input id="loginPassword" type="password" required
-                            placeholder="Enter password" autocomplete="current-password" value="admin123"><button
+                            placeholder="Enter password" autocomplete="current-password"><button
                             id="showPassword" type="button" aria-label="Show password">◉</button></div>
                     <div id="loginError" class="login-error" role="alert"></div><button type="submit"
                         class="signin-submit">Sign in <span>→</span></button>
                 </form>
-                <div class="demo-credentials"><strong>Demo account</strong>
-                    <div>Email: admin@demo.com</div>
-                    <div>Password: admin123</div><small>For demonstration only. This is not secure
-                        authentication.</small>
+                <div class="demo-credentials"><strong>Your company account</strong>
+                    <div>Sign in with the account created by your administrator.</div>
+                    <small>Contact your administrator if your employee account has not been linked.</small>
                 </div>
             </div>
-            <div class="signin-bottom">© 2026 PeopleFlow HCM — Browser-based demo</div>
+            <div class="signin-bottom">© 2026 PeopleFlow HCM — HR Workspace</div>
         </div>
     </section>
     <div id="app" class="app hidden">
-        <aside class="sidebar">
+        <button id="sidebarOverlay" class="sidebar-overlay" type="button" aria-label="Close navigation" hidden></button>
+        <aside class="sidebar" id="sidebar">
             <div class="brand">
                 <!-- <div class="brand-icon">P<span>✦</span></div> -->
                 <div><strong>peopleflow</strong><small>HR WORKSPACE</small></div>
@@ -59,27 +59,26 @@
             <div class="nav-label">WORKSPACE</div>
             <nav id="navigation"></nav>
             <div class="sidebar-foot">
-                <div class="demo-tag">● Offline demo · Browser storage</div>
+                <div class="demo-tag">● Supabase workspace</div>
                 <div class="profile"><span class="avatar">HR</span>
                     <div><b>HR Administrator</b><small>Demo workspace</small></div>
                 </div>
             </div>
         </aside>
         <div class="main">
-            <header class="topbar"><button class="mobile-toggle" id="menuBtn" aria-label="Toggle menu">☰</button>
+            <header class="topbar"><button class="mobile-toggle" id="menuBtn" aria-label="Toggle menu" aria-controls="sidebar" aria-expanded="false">☰</button>
                 <div class="crumb">Workspace <span>/</span> <b id="crumb">Overview</b></div>
                 <div class="topright"><button id="logoutBtn" class="logout-btn" type="button">↪ Log out</button><span
                         class="date-now" id="today"></span><button class="iconbtn" id="exportBtn"
                         title="Download backup">↓</button><span class="topavatar">HR</span></div>
             </header>
             <main id="view"></main>
-            <footer class="footnote">PeopleFlow is an independent local demonstration, not affiliated with FlowHCM. Data
-                stays in this browser unless exported.</footer>
+            <footer class="footnote"><span id="syncStatus" role="status" aria-live="polite">Connected to Supabase</span> · Times in Asia/Karachi · PeopleFlow is not affiliated with FlowHCM.</footer>
         </div>
     </div>
     <div id="modal" class="modal hidden">
         <div class="modal-backdrop" data-close="1"></div>
-        <div class="modal-panel">
+        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
             <div class="modal-head">
                 <h2 id="modalTitle"></h2><button class="close" data-close="1">×</button>
             </div>
@@ -87,7 +86,11 @@
         </div>
     </div>
     <div id="toast" class="toast"></div>
-    <script src="app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+    <script defer src="supabase-config.js"></script>
+    <script defer src="cloud.js"></script>
+    <script defer src="features.js"></script>
+    <script defer src="app.js"></script>
 </body>
 
 </html>
